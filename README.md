@@ -54,6 +54,7 @@ Red Spider Mites are significant agricultural pests causing substantial crop dam
     ```
 
 ## Project Structure (Example)
+```bash
 AI_capstone/
 ├── dashboard_artifacts/
 ├── .gitignore
@@ -64,6 +65,7 @@ AI_capstone/
 ├── full_red_spider_count.csv
 ├── red_spider_mite_forecast_data.csv
 ├── requirements.txt
+```
 
 ## Future Work
 *   Integration with real-time IoT sensor data.
