@@ -54,6 +54,16 @@ Red Spider Mites are significant agricultural pests causing substantial crop dam
     ```
 
 ## Project Structure (Example)
+AI_capstone/
+├── dashboard_artifacts/
+├── .gitignore
+├── Data_generation.ipynb
+├── Model_training.ipynb
+├── README.md
+├── app.py
+├── full_red_spider_count.csv
+├── red_spider_mite_forecast_data.csv
+├── requirements.txt
 
 ## Future Work
 *   Integration with real-time IoT sensor data.
@@ -61,3 +71,11 @@ Red Spider Mites are significant agricultural pests causing substantial crop dam
 *   Validation of the simulation model against real-world outbreak data.
 *   Deployment to a cloud platform.
 *   Incorporation of more detailed biological factors (e.g., mite life stages).
+
+
+## Phenode Access
+To enable real-time predictions, update your Phenode credentials in app.py
+```bash
+PHENODE_USERNAME = "PHENODE_LINK_USERNAME"
+PHENODE_PASSWORD = "PHENODE_LINK_PASSWORD"
+  ```
