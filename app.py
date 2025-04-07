@@ -63,8 +63,8 @@ ARTIFACTS_DIR = 'dashboard_artifacts'
 HISTORY_LENGTH = 30
 PRIMARY_PHENODE_URL = "https://phenode-link.com/"
 FALLBACK_PHENODE_URL = "https://gist.githubusercontent.com/SiriChandanaGarimella/e478eee96f0391b1cb5e9552e57ad994/raw/f827adfd58c1f7afa6b3f9efd0254c904c9141a3/data.json"
-PHENODE_USERNAME = "esposito lab"
-PHENODE_PASSWORD = "flavio*123"
+PHENODE_USERNAME = "PHENODE_LINK_USERNAME"
+PHENODE_PASSWORD = "PHENODE_LINK_PASSWORD"
 
 # --- Load Artifacts ---
 @st.cache_resource
