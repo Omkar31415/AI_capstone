@@ -5,3 +5,9 @@ joblib
 xgboost
 scikit-learn
 plotly
+ipykernel
+matplotlib
+seaborn
+statsmodels
+prophet
+lightgbm

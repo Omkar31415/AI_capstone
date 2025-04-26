@@ -107,15 +107,34 @@ class_names = list(label_encoder.classes_)
 
 # --- Data Loading Functions ---
 def fetch_phenode_data(start_date, end_date):
-    """Fetches real-time data from Phenode URL, trying primary URL first, then falling back to Gist."""
+    """Fetches real-time data from Phenode URL, trying primary URL first, then falling back to local data."""
     try:
-        # Convert start_date and end_date to datetime64[ns, UTC] for comparison
-        start_date = pd.to_datetime(start_date).tz_localize('UTC')
-        end_date = pd.to_datetime(end_date).tz_localize('UTC')
+        # Try loading from local data directory
+        data_file = r"PheNode_001_Esposito_Lab__Environmental_Data.csv"
+        if os.path.exists(data_file):
+            df = pd.read_csv(data_file)
+            df['measurement_time'] = pd.to_datetime(df['measurement_time'])
+            df = df[(df['measurement_time'] >= start_date) & (df['measurement_time'] <= end_date)]
+            return df
+        else:
+            st.warning("Local Phenode data file not found. Trying fallback URL.")
+            # Try the primary Phenode URL with authentication
+            try:
+                response = requests.get(PRIMARY_PHENODE_URL, auth=(PHENODE_USERNAME, PHENODE_PASSWORD))
+                if response.status_code == 200:
+                    data = response.json()
+                    df = pd.DataFrame(data)
+                    df['measurement_time'] = pd.to_datetime(df['measurement_time'])
+                    df['measurement_time'] = df['measurement_time'].dt.tz_convert('UTC')
+                    df = df[(df['measurement_time'] >= start_date) & (df['measurement_time'] <= end_date)]
+                    return df
+                else:
+                    st.warning(f"Failed to fetch from primary Phenode URL: HTTP {response.status_code}. Trying fallback URL.")
+            except Exception as e:
+                st.warning(f"Error fetching from primary Phenode URL: {e}. Trying fallback URL.")
 
-        # Try the primary Phenode URL with authentication
-        try:
-            response = requests.get(PRIMARY_PHENODE_URL, auth=(PHENODE_USERNAME, PHENODE_PASSWORD))
+            # If primary URL fails, try the fallback Gist URL (no authentication needed)
+            response = requests.get(FALLBACK_PHENODE_URL)
             if response.status_code == 200:
                 data = response.json()
                 df = pd.DataFrame(data)
@@ -124,22 +143,8 @@ def fetch_phenode_data(start_date, end_date):
                 df = df[(df['measurement_time'] >= start_date) & (df['measurement_time'] <= end_date)]
                 return df
             else:
-                st.warning(f"Failed to fetch from primary Phenode URL: HTTP {response.status_code}. Trying fallback URL.")
-        except Exception as e:
-            st.warning(f"Error fetching from primary Phenode URL: {e}. Trying fallback URL.")
-
-        # If primary URL fails, try the fallback Gist URL (no authentication needed)
-        response = requests.get(FALLBACK_PHENODE_URL)
-        if response.status_code == 200:
-            data = response.json()
-            df = pd.DataFrame(data)
-            df['measurement_time'] = pd.to_datetime(df['measurement_time'])
-            df['measurement_time'] = df['measurement_time'].dt.tz_convert('UTC')
-            df = df[(df['measurement_time'] >= start_date) & (df['measurement_time'] <= end_date)]
-            return df
-        else:
-            st.error(f"Failed to fetch from fallback Phenode URL: HTTP {response.status_code}")
-            return None
+                st.error(f"Failed to fetch from fallback Phenode URL: HTTP {response.status_code}")
+                return None
     except Exception as e:
         st.error(f"Error fetching Phenode data: {e}")
         return None
@@ -184,23 +189,44 @@ def load_historical_data():
         data['confidence'] = np.max(probs, axis=1)
         return data
 
-def process_data(df):
-    """Processes raw data into a format suitable for the model."""
+def process_phenode_data(df):
+    """Processes raw Phenode data into a format suitable for the model."""
     if df.empty:
         return pd.DataFrame()
+    
+    # Pivot the data to create a time series format
     df_pivot = df.pivot_table(index='measurement_time', columns='metric', values='value', aggfunc='first')
-    df_pivot.rename(columns={
+    
+    # Rename columns to match the Prophet model variables
+    column_mapping = {
         'air_temp': 'temperature',
         'humidity': 'humidity',
-        'fallen_rain_mm': 'rainfall'
-    }, inplace=True)
+        'fallen_rain_mm': 'rainfall',
+        'pressure': 'pressure',
+        'vapor_pressure': 'vapor_pressure',
+        'rain_bucket_capacity': 'rain_bucket_capacity',
+        'rain_bucket_tpm': 'rain_bucket_tpm',
+        'wind_speed_mps': 'wind_speed_mps',
+        'wind_direction': 'wind_direction',
+        'wind_gust_mps': 'wind_gust_mps',
+        'wind_north_mps': 'wind_north_mps',
+        'wind_east_mps': 'wind_east_mps',
+        'latitude': 'latitude',
+        'longitude': 'longitude',
+        'x_orientation': 'x_orientation',
+        'y_orientation': 'y_orientation'
+    }
+    
+    df_pivot.rename(columns=column_mapping, inplace=True)
+    
     # Convert columns to numeric, coercing errors to NaN
-    df_pivot['temperature'] = pd.to_numeric(df_pivot.get('temperature', 25.0), errors='coerce').fillna(25.0)
-    df_pivot['humidity'] = pd.to_numeric(df_pivot.get('humidity', 60.0), errors='coerce').fillna(60.0)
-    df_pivot['rainfall'] = pd.to_numeric(df_pivot.get('rainfall', 0.0), errors='coerce').fillna(0.0)
+    for col in df_pivot.columns:
+        df_pivot[col] = pd.to_numeric(df_pivot[col], errors='coerce').fillna(0)
+    
     # Add static columns
     df_pivot['N'], df_pivot['P'], df_pivot['K'], df_pivot['ph'] = 75, 45, 42, 7.0
     df_pivot['label'] = 'unknown'
+    
     return df_pivot
 
 # --- Feature Engineering ---
@@ -447,8 +473,8 @@ def main():
 
     with st.sidebar:
         st.markdown("<h2 style='color: #4CAF50;'>Data Source Selection</h2>", unsafe_allow_html=True)
-        start_date = st.date_input("Start Date", value=pd.to_datetime("2024-07-03"), min_value=datetime(2024, 1, 1), max_value=datetime(2026, 12, 31))
-        end_date = st.date_input("End Date", value=pd.to_datetime("2024-07-03"), min_value=datetime(2024, 1, 1), max_value=datetime(2026, 12, 31))
+        start_date = st.date_input("Start Date", value=pd.to_datetime("2024-01-01"), min_value=datetime(2024, 1, 1), max_value=datetime(2026, 12, 31))
+        end_date = st.date_input("End Date", value=pd.to_datetime("2025-04-01"), min_value=datetime(2024, 1, 1), max_value=datetime(2026, 12, 31))
 
         col1, col2 = st.columns(2)
         with col1:
@@ -460,7 +486,7 @@ def main():
             if st.button("Load Phenode Data", use_container_width=True):
                 phenode_data = fetch_phenode_data(start_date, end_date)
                 if phenode_data is not None and not phenode_data.empty:
-                    processed_phenode = process_data(phenode_data)
+                    processed_phenode = process_phenode_data(phenode_data)
                     if not processed_phenode.empty:
                         processed_phenode['timestamp'] = processed_phenode.index
                         processed_phenode['red_spider_count'] = np.random.uniform(50, 200, len(processed_phenode))
